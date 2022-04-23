@@ -137,11 +137,11 @@ int find_k_means(double **x, size_t K, size_t d, size_t max_iter, size_t points,
 
             for(j=0; j<K; j++){ 
                 distance = euclidean_diff_norm(mu[j], x[i], d);
-                	if (distance < min_distance){
+                    if (distance < min_distance){
                         min_distance = distance;
-					    min_j = j;
+                        min_j = j;
                     }
-					
+                    
             }
             for(n = 0; n < d; n++){
                 cluster_sums[min_j][n] += x[i][n];
