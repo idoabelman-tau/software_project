@@ -45,36 +45,43 @@ def find_k_means(x, K, d, max_iter, eps=DEFAULT_EPSILON):
 
 
 def main():
-	if len(sys.argv) == 4:
-		_, K_arg, input_filename, output_filename = sys.argv
-		max_iter = DEFAULT_MAX_ITER
-	elif len(sys.argv) == 5:
-		_, K_arg, max_iter_arg, input_filename, output_filename = sys.argv
-		if max_iter_arg.isdigit():
-			max_iter = int(max_iter_arg)
+	try:
+		if len(sys.argv) == 4:
+			_, K_arg, input_filename, output_filename = sys.argv
+			max_iter = DEFAULT_MAX_ITER
+		elif len(sys.argv) == 5:
+			_, K_arg, max_iter_arg, input_filename, output_filename = sys.argv
+			if max_iter_arg.isdigit():
+				max_iter = int(max_iter_arg)
+			else:
+				print("Invalid Input!")
+				exit()
 		else:
 			print("Invalid Input!")
 			exit()
-	else:
-		print("Invalid Input!")
-		exit()
 
-	if K_arg.isdigit():
-		K = int(K_arg)
-	else:
-		print("Invalid Input!")
-		exit()
+		if K_arg.isdigit():
+			K = int(K_arg)
+		else:
+			print("Invalid Input!")
+			exit()
 
-	with open(input_filename, "r") as input_file:
-		x = [[float(num) for num in line.split(",")] for line in input_file]
+		if max_iter <= 0 or K <= 0:
+			print("Invalid Input!")
+			exit()
 
-	centroids = find_k_means(x, K, len(x[0]), max_iter)
-	
-	with open(output_filename, "w") as output_file:
-		for centroid in centroids:
-			centroid_str = ",".join(f"{num:.4f}" for num in centroid)
-			output_file.write(f"{centroid_str}\n")
+		with open(input_filename, "r") as input_file:
+			x = [[float(num) for num in line.split(",")] for line in input_file]
+
+		centroids = find_k_means(x, K, len(x[0]), max_iter)
 		
+		with open(output_filename, "w") as output_file:
+			for centroid in centroids:
+				centroid_str = ",".join(f"{num:.4f}" for num in centroid)
+				output_file.write(f"{centroid_str}\n")
+	except Exception:
+		print("An Error Has Occurred")
+
 
 if __name__ == '__main__':
 	main()
