@@ -3,9 +3,9 @@ from setuptools import setup, find_packages, Extension
 setup(
     name='mykmeanssp',
     version='3.1.4',
-    author="Ido Abelman",
+    author="Ido Abelman, Shachar Haim",
     author_email="author@example.com",
-    description="A sample C-API",
+    description="Kmeans implementation",
     install_requires=['invoke'],
     packages=find_packages(),
     license='GPL-2',

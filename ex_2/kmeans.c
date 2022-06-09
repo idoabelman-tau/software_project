@@ -3,8 +3,6 @@
 
 #include <math.h>
 
-#define EPSILON 0.001
-
 static double euclidean_diff_norm(double *v1, double *v2, size_t d){
     size_t i;
     double distance_sum = 0;
@@ -17,7 +15,7 @@ static double euclidean_diff_norm(double *v1, double *v2, size_t d){
 
 }
 
-static int fit_impl(double **x, size_t K, size_t d, size_t max_iter, size_t points, double **mu){
+static int fit_impl(double **x, size_t K, size_t d, size_t max_iter, size_t points, double **mu, double epsilon){
     size_t i;
     size_t j;
     size_t k;
@@ -106,7 +104,7 @@ static int fit_impl(double **x, size_t K, size_t d, size_t max_iter, size_t poin
                 new_mu[i][j] = (cluster_sums[i][j])/(cluster_counts[i]); 
             }
             
-            if (euclidean_diff_norm(mu[i], new_mu[i], d) >= EPSILON) {
+            if (euclidean_diff_norm(mu[i], new_mu[i], d) >= epsilon) {
                 mu_converged = 0;
             }
         }
@@ -150,11 +148,12 @@ static PyObject* fit_api(PyObject *self, PyObject *args) {
     PyObject* result_centroid_py;
     size_t k;
     size_t max_iter;
+    double epsilon;
     int error_value;
     size_t i;
     size_t j;
 
-    if(!PyArg_ParseTuple(args, "OOKK:fit", &datapoints_py, &initial_centroids_py, &k, &max_iter)) {
+    if(!PyArg_ParseTuple(args, "OOKKd:fit", &datapoints_py, &initial_centroids_py, &k, &max_iter, &epsilon)) {
         return NULL;
     }
 
@@ -279,7 +278,7 @@ static PyObject* fit_api(PyObject *self, PyObject *args) {
 
     /* run implementation of kmeans fit with the data we have. return value is an error value,
     the actual output is the centroids array which is modified by the function */
-    error_value = fit_impl(datapoints, k, dimension, max_iter, point_count, centroids);
+    error_value = fit_impl(datapoints, k, dimension, max_iter, point_count, centroids, epsilon);
     if (error_value != 0)
     {
         free(datapoints);
