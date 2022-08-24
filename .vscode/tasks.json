@@ -14,7 +14,8 @@
 				"-o",
 				"${fileDirname}\\${fileBasenameNoExtension}.exe",
 				"-g",
-				"${file}"
+				"matrix.c",
+				"spkmeans.c"
 			],
 			"options": {
 				"cwd": "${fileDirname}"
