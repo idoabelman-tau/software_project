@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages, Extension
 
 setup(
-    name='mykmeanssp',
+    name='myspkmeans',
     version='3.1.4',
     author="Ido Abelman, Shachar Haim",
     author_email="author@example.com",
-    description="Kmeans implementation",
+    description="Normalized spectral clustering implementation",
     install_requires=['invoke'],
     packages=find_packages(),
     license='GPL-2',
@@ -18,8 +18,8 @@ setup(
     ],
     ext_modules=[
         Extension(
-            'mykmeanssp',
-            ['kmeans.c'],
+            'myspkmeans',
+            ['spkmeansmodule.c', 'spkmeans.c', 'matrix.c'],
         ),
     ]
 )

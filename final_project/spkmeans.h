@@ -18,7 +18,7 @@ matrix *calc_diagonal_degree_impl(matrix *weighted_adjacency_matrix);
 
 
 /*
- * Calculate the diagonal degree matrix as defined in the project document 1.1.2 based on the given weighted adjacency matrix and diagonal_degree_matrix.
+ * Calculate the normalized graph laplacian (lnorm) as defined in the project document 1.1.3 based on the given weighted adjacency matrix and diagonal degree matrix.
  * Returns NULL on error.
  * It is the caller's responsibility to free the returned matrix by passing it to free_matrix.
  */

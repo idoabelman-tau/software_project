@@ -1,182 +1,231 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include "matrix.h"
+#include "spkmeans.h"
 
+/* convert a python nested list of floats to a matrix.
+ * It is the caller's responsibility to free the returned matrix by calling free_matrix().
+ * If the argument is not a nested list of floats or there is not enough memory NULL is returned
+ * and a matching python error is set. 
+ */
+static matrix* python_list_to_matrix(PyObject *mat_py) {
+    size_t rows;
+    size_t columns;
+    matrix* mat;
+    PyObject* row_py;
+    PyObject* item_py;
+    size_t i;
+    size_t j;
+
+    if (!PyList_Check(mat_py))
+    {
+        PyErr_SetString(PyExc_TypeError, "matrix argument must be a list of lists of floats");
+        return NULL;
+    }
+
+    rows = (size_t) PyList_Size(mat_py);
+
+    /* get columns count from first row and initialize matrix array accordingly */
+    row_py = PyList_GetItem(mat_py, 0);
+    if (!PyList_Check(row_py)){
+        PyErr_SetString(PyExc_TypeError, "matrix argument must be a list of lists of floats");
+        return NULL;
+    }
+    
+    columns = (size_t) PyList_Size(row_py);
+
+    mat = init_matrix(rows, columns);
+    if (mat == NULL)
+    {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    /* initialize datapoints 2d array based on python list of lists */
+    for (i = 0; i < rows; i++) {
+        row_py = PyList_GetItem(mat_py, i);
+        if (!PyList_Check(row_py)){
+            free_matrix(mat);
+            PyErr_SetString(PyExc_TypeError, "matrix argument must be a list of lists of floats");
+            return NULL;
+        }
+        
+        for (j = 0; j < columns; j++)
+        {
+            item_py = PyList_GetItem(row_py, j);
+            if(!PyFloat_Check(item_py))
+            {
+                free_matrix(mat);
+                PyErr_SetString(PyExc_TypeError, "matrix argument must be a list of lists of floats");
+                return NULL;
+            }
+
+            mat->content[i][j] = PyFloat_AsDouble(item_py);
+        }
+    }
+
+    return mat;
+}
+
+/* converts a matrix to a python nested list of floats */
+static PyObject* matrix_to_python_list(matrix* mat) {
+    PyObject* mat_py;
+    PyObject* row_py;
+    size_t i;
+    size_t j;
+    
+    mat_py = PyList_New(mat->rows);
+
+    for (i = 0; i < mat->rows; i++)
+    {
+        row_py = PyList_New(mat->columns);
+        for (j = 0; j < mat->columns; j++)
+        {
+            PyList_SetItem(row_py, j, PyFloat_FromDouble(mat->content[i][j]));
+        }
+        
+        PyList_SetItem(mat_py, i, row_py);
+    }
+
+    return mat_py;
+}
+
+/* api wrapper for implementations of calc_weighted_adjacency_matrix */
+static PyObject* calc_weighted_adjacency_api(PyObject *self, PyObject *datapoints_py) {
+    matrix* datapoints;
+    matrix* weighted_adjacency_matrix;
+
+    datapoints = python_list_to_matrix(datapoints_py);
+    if (datapoints == NULL)
+    {
+        /* error set inside python_list_to_matrix */
+        return NULL;
+    }
+
+    weighted_adjacency_matrix = calc_weighted_adjacency_impl(datapoints);
+    if (weighted_adjacency_matrix == NULL)
+    {
+        PyErr_NoMemory(); /* all errors in impl function are memory errors */
+        return NULL;
+    }
+
+    return matrix_to_python_list(weighted_adjacency_matrix);
+}
+
+/* api wrapper for implementations of calc_diagonal_degree_matrix */
+static PyObject* calc_diagonal_degree_api(PyObject *self, PyObject *weighted_adjacency_matrix_py) {
+    matrix* weighted_adjacency_matrix;
+    matrix* diagonal_degree_matrix;
+
+    weighted_adjacency_matrix = python_list_to_matrix(weighted_adjacency_matrix_py);
+    if (weighted_adjacency_matrix == NULL)
+    {
+        /* error set inside python_list_to_matrix */
+        return NULL;
+    }
+
+    diagonal_degree_matrix = calc_diagonal_degree_impl(weighted_adjacency_matrix);
+    if (diagonal_degree_matrix == NULL)
+    {
+        PyErr_NoMemory(); /* all errors in impl function are memory errors */
+        return NULL;
+    }
+
+    return matrix_to_python_list(diagonal_degree_matrix);
+}
+
+/* api wrapper for implementations of calc_lnorm */
+static PyObject* calc_lnorm_api(PyObject *self, PyObject *args) {
+    PyObject* weighted_adjacency_matrix_py;
+    PyObject* diagonal_degree_matrix_py;
+    matrix* weighted_adjacency_matrix;
+    matrix* diagonal_degree_matrix;
+    matrix* lnorm;
+
+    if(!PyArg_ParseTuple(args, "OO:calc_lnorm", &weighted_adjacency_matrix_py, &diagonal_degree_matrix_py)) {
+        return NULL;
+    }
+
+    weighted_adjacency_matrix = python_list_to_matrix(weighted_adjacency_matrix_py);
+    if (weighted_adjacency_matrix == NULL)
+    {
+        /* error set inside python_list_to_matrix */
+        return NULL;
+    }
+
+    diagonal_degree_matrix = python_list_to_matrix(diagonal_degree_matrix_py);
+    if (diagonal_degree_matrix == NULL)
+    {
+        /* error set inside python_list_to_matrix */
+        return NULL;
+    }
+
+    lnorm = calc_lnorm_impl(weighted_adjacency_matrix, diagonal_degree_matrix);
+    if (lnorm == NULL)
+    {
+        PyErr_NoMemory(); /* all errors in impl function are memory errors */
+        return NULL;
+    }
+
+    return matrix_to_python_list(lnorm);
+}
+
+/* api wrapper for implementations of fit */
 static PyObject* fit_api(PyObject *self, PyObject *args) {
     PyObject* datapoints_py;
-    PyObject* datapoint_py;
-    size_t point_count;
-    size_t dimension;
-    double* datapoints_buffer;
-    double** datapoints;
-    PyObject* datapoint_item_py;
     PyObject* initial_centroids_py;
-    PyObject* centroid_py;
-    PyObject* centroid_item_py;
-    double* centroids_buffer;
-    double** centroids;
-    PyObject* result_centroids_py;
-    PyObject* result_centroid_py;
+    matrix* datapoints;
+    matrix* centroids;
     size_t k;
     size_t max_iter;
     double epsilon;
     int error_value;
-    size_t i;
-    size_t j;
 
     if(!PyArg_ParseTuple(args, "OOKKd:fit", &datapoints_py, &initial_centroids_py, &k, &max_iter, &epsilon)) {
         return NULL;
     }
 
-    if (!PyList_Check(datapoints_py))
-    {
-        PyErr_SetString(PyExc_TypeError, "fit() argument 1 (datapoints) must be a list of lists of floats");
-        return NULL;
-    }
-    
-    if (!PyList_Check(initial_centroids_py))
-    {
-        PyErr_SetString(PyExc_TypeError, "fit() argument 2 (initial centroids) must be a list of lists of floats");
-        return NULL;
-    }
-
-    point_count = (size_t) PyList_Size(datapoints_py);
-
-    /* get dimension from first point and allocate 2d array accordingly */
-    datapoint_py = PyList_GetItem(datapoints_py, 0);
-    if (!PyList_Check(datapoint_py)){
-        PyErr_BadArgument();
-        return NULL;
-    }
-    
-    dimension = (size_t) PyList_Size(datapoint_py);
-    datapoints_buffer = calloc(point_count * dimension, sizeof(double));
-    if (datapoints_buffer == NULL)
-    {
-        PyErr_NoMemory();
-        return NULL;
-    }
-
-    datapoints = calloc(point_count, sizeof(double *));
+    datapoints = python_list_to_matrix(datapoints_py);
     if (datapoints == NULL)
     {
-        free(datapoints_buffer);
-        PyErr_NoMemory();
+        /* error set inside python_list_to_matrix */
         return NULL;
     }
-
-    for (i=0; i < point_count; i++ ){
-        datapoints[i] = datapoints_buffer + (i * dimension);
-    }
-
-    /* initialize datapoints 2d array based on python list of lists */
-    for (i = 0; i < point_count; i++) {
-        datapoint_py = PyList_GetItem(datapoints_py, i);
-        if (!PyList_Check(datapoint_py)){
-            free(datapoints);
-            free(datapoints_buffer);
-            PyErr_SetString(PyExc_TypeError, "fit() argument 1 (datapoints) must be a list of lists of floats");
-            return NULL;
-        }
-        
-        for (j = 0; j < dimension; j++)
-        {
-            datapoint_item_py = PyList_GetItem(datapoint_py, j);
-            if(!PyFloat_Check(datapoint_item_py))
-            {
-                free(datapoints);
-                free(datapoints_buffer);
-                PyErr_SetString(PyExc_TypeError, "fit() argument 1 (datapoints) must be a list of lists of floats");
-                return NULL;
-            }
-
-            datapoints[i][j] = PyFloat_AsDouble(datapoint_item_py);
-        }
-    }
-
-    /* allocate centroids 2d array, assumed k centroids with length dimension */
-    centroids_buffer = calloc(k * dimension, sizeof(double));
-    if (centroids_buffer == NULL)
-    {
-        free(datapoints);
-        free(datapoints_buffer);
-        PyErr_NoMemory();
-        return NULL;
-    }
-
-    centroids = calloc(k, sizeof(double *));
+    
+    centroids = python_list_to_matrix(initial_centroids_py);
     if (centroids == NULL)
     {
-        free(datapoints);
-        free(datapoints_buffer);
-        free(centroids_buffer);
-        PyErr_NoMemory();
+        /* error set inside python_list_to_matrix */
         return NULL;
-    }
-
-    for (i=0; i < k; i++ ){
-        centroids[i] = centroids_buffer + (i * dimension);
-    }
-
-    /* initialize centroids based on python data */
-    for (i = 0; i < k; i++) {
-        centroid_py = PyList_GetItem(initial_centroids_py, i);
-        if (!PyList_Check(centroid_py)){
-            free(datapoints);
-            free(datapoints_buffer);
-            free(centroids_buffer);
-            free(centroids);
-            PyErr_SetString(PyExc_TypeError, "fit() argument 2 (initial centroids) must be a list of lists of floats");
-            return NULL;
-        }
-        
-        for (j = 0; j < dimension; j++)
-        {
-            centroid_item_py = PyList_GetItem(centroid_py, j);
-            if(!PyFloat_Check(centroid_item_py))
-            {
-                free(datapoints);
-                free(datapoints_buffer);
-                free(centroids_buffer);
-                free(centroids);
-                PyErr_SetString(PyExc_TypeError, "fit() argument 2 (initial centroids) must be a list of lists of floats");
-                return NULL;
-            }
-
-            centroids[i][j] = PyFloat_AsDouble(centroid_item_py);
-        }
     }
 
     /* run implementation of kmeans fit with the data we have. return value is an error value,
     the actual output is the centroids array which is modified by the function */
-    error_value = fit_impl(datapoints, k, dimension, max_iter, point_count, centroids, epsilon);
+    error_value = fit_impl(datapoints, k, max_iter, centroids, epsilon);
     if (error_value != 0)
     {
-        free(datapoints);
-        free(datapoints_buffer);
-        free(centroids_buffer);
-        free(centroids);
+        free_matrix(datapoints);
+        free_matrix(centroids);
         PyErr_NoMemory(); /* all errors in fit are memory errors */
         return NULL;
     }
     
-    /* construct python list of lists from centroids and return it */ 
-    result_centroids_py = PyList_New(k);
-    for (i = 0; i < k; i++)
-    {
-        result_centroid_py = PyList_New(dimension);
-        for (j = 0; j < dimension; j++)
-        {
-            PyList_SetItem(result_centroid_py, j, PyFloat_FromDouble(centroids[i][j]));
-        }
-        
-        PyList_SetItem(result_centroids_py, i, result_centroid_py);
-    }
-
-    return result_centroids_py;
-    
+    return matrix_to_python_list(centroids);
 }
 
 static PyMethodDef capiMethods[] = {
+    {"calc_weighted_adjacency_matrix",                   
+      (PyCFunction) calc_weighted_adjacency_api, 
+      METH_O,           
+      PyDoc_STR("Calculate the weighted adjacency matrix based on datapoints")}, 
+    {"calc_diagonal_degree_matrix",                   
+      (PyCFunction) calc_diagonal_degree_api, 
+      METH_O,           
+      PyDoc_STR("Calculate the diagonal degree matrix based on weighted adjacency matrix")}, 
+    {"calc_lnorm",                   
+      (PyCFunction) calc_lnorm_api, 
+      METH_VARARGS,           
+      PyDoc_STR("Calculate the lnorm based on weighted adjacency matrix and diagonal degree matrix")}, 
     {"fit",                   
       (PyCFunction) fit_api, 
       METH_VARARGS,           
@@ -187,14 +236,14 @@ static PyMethodDef capiMethods[] = {
 
 static struct PyModuleDef moduledef = {
     PyModuleDef_HEAD_INIT,
-    "mykmeanssp", 
+    "myspkmeans", 
     NULL, 
     -1, 
     capiMethods 
 };
 
 PyMODINIT_FUNC
-PyInit_mykmeanssp(void)
+PyInit_myspkmeans(void)
 {
     PyObject *m;
     m = PyModule_Create(&moduledef);

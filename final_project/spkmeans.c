@@ -4,8 +4,6 @@
 #include <math.h>
 #include "matrix.h"
 
-#define INFINITY (1.0/0.0)
-
 /* doc in header */
 matrix *calc_weighted_adjacency_impl(matrix *datapoints){
     size_t i;
@@ -286,5 +284,6 @@ int main(int argc, char *argv[]) {
         free_matrix(weighted_adjacency_matrix);
     }
 
+    free_matrix(input_data);
     return 0;
 }

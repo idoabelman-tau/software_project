@@ -1,7 +1,7 @@
 import sys
 import numpy as np 
 import pandas as pd
-import mykmeanssp
+import myspkmeans
 
 DEFAULT_MAX_ITER = 300
 
@@ -29,21 +29,17 @@ def init_centroids(x, K, d, N):
 
 	return index_lst, centroids
 
+def print_matrix(mat):
+	for row in mat:
+		print(",".join(f"{num:.4f}" for num in row))
+
 def main():
 	try:
-		if len(sys.argv) == 5:
-			_, K_arg, eps_arg, input_filename1, input_filename2 = sys.argv
-			max_iter = DEFAULT_MAX_ITER
-		elif len(sys.argv) == 6:
-			_, K_arg, max_iter_arg, eps_arg, input_filename1, input_filename2 = sys.argv
-			if max_iter_arg.isdigit():
-				max_iter = int(max_iter_arg)
-			else:
-				print("Invalid Input!")
-				exit()
-		else:
+		if len(sys.argv) != 4:
 			print("Invalid Input!")
 			exit()
+
+		_, K_arg, goal, input_filename = sys.argv
 
 		if K_arg.isdigit():
 			K = int(K_arg)
@@ -51,31 +47,30 @@ def main():
 			print("Invalid Input!")
 			exit()
 
-		try:
-			eps = float(eps_arg)
-		except ValueError:
+		if K < 0:
 			print("Invalid Input!")
 			exit()
 
-		if max_iter <= 0 or K <= 0:
+		input = pd.read_csv(input_filename, header=None)
+
+		if goal == "wam":
+			weighted_adjacency_matrix = myspkmeans.calc_weighted_adjacency_matrix(input.values.tolist())
+			print_matrix(weighted_adjacency_matrix)
+		
+		elif goal == "ddg":
+			weighted_adjacency_matrix = myspkmeans.calc_weighted_adjacency_matrix(input.values.tolist())
+			diagonal_degree_matrix = myspkmeans.calc_diagonal_degree_matrix(weighted_adjacency_matrix)
+			print_matrix(diagonal_degree_matrix)
+			
+		elif goal == "lnorm":
+			weighted_adjacency_matrix = myspkmeans.calc_weighted_adjacency_matrix(input.values.tolist())
+			diagonal_degree_matrix = myspkmeans.calc_diagonal_degree_matrix(weighted_adjacency_matrix)
+			lnorm = myspkmeans.calc_lnorm(weighted_adjacency_matrix, diagonal_degree_matrix)
+			print_matrix(lnorm)
+
+		else:
 			print("Invalid Input!")
 			exit()
-
-		input1 = pd.read_csv(input_filename1, header=None)
-		input2 = pd.read_csv(input_filename2, header=None)
-		points = pd.merge(input1, input2, on=0)
-		points.set_index(points[0], inplace=True)	
-		N, d = points.shape
-		d -= 1
-		points = points.sort_index(axis = 0)
-		x = points.to_numpy()[:,1:]
-
-		index_lst, initial_centroids = init_centroids(x, K, d, N)
-		print(*index_lst, sep = ",")
-
-		final_centroids = mykmeanssp.fit(x.tolist(), initial_centroids.tolist(), K, max_iter, eps)
-		for centroid in final_centroids:
-			print(",".join(f"{num:.4f}" for num in centroid))
 	
 	except Exception:
 		print("An Error Has Occurred")
