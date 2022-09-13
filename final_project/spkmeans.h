@@ -19,10 +19,10 @@ matrix *calc_diagonal_degree_impl(matrix *weighted_adjacency_matrix);
 
 /*
  * Calculate the normalized graph laplacian (lnorm) as defined in the project document 1.1.3 based on the given weighted adjacency matrix and diagonal degree matrix.
- * Returns NULL on error.
- * It is the caller's responsibility to free the returned matrix by passing it to free_matrix.
+ * The calculation is done in-place by modifying weighted_adjacency_matrix. diagonal_degree_matrix is also modified during
+ * the calculation.
  */
-matrix *calc_lnorm_impl(matrix *weighted_adjacency_matrix, matrix *diagonal_degree_matrix);
+void calc_lnorm_impl(matrix *weighted_adjacency_matrix, matrix *diagonal_degree_matrix);
 
 /*
  * Fits K centroids to the given datapoints using the kmeans algorithm.

@@ -134,13 +134,15 @@ static PyObject* calc_diagonal_degree_api(PyObject *self, PyObject *weighted_adj
     return matrix_to_python_list(diagonal_degree_matrix);
 }
 
-/* api wrapper for implementations of calc_lnorm */
+/* api wrapper for implementations of calc_lnorm. Note that unlike the implementation function,
+ * the wrapper function actually returns lnorm as a python list of lists and does not modify
+ * the python arguments it recieves.
+ */
 static PyObject* calc_lnorm_api(PyObject *self, PyObject *args) {
     PyObject* weighted_adjacency_matrix_py;
     PyObject* diagonal_degree_matrix_py;
     matrix* weighted_adjacency_matrix;
     matrix* diagonal_degree_matrix;
-    matrix* lnorm;
 
     if(!PyArg_ParseTuple(args, "OO:calc_lnorm", &weighted_adjacency_matrix_py, &diagonal_degree_matrix_py)) {
         return NULL;
@@ -160,14 +162,8 @@ static PyObject* calc_lnorm_api(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    lnorm = calc_lnorm_impl(weighted_adjacency_matrix, diagonal_degree_matrix);
-    if (lnorm == NULL)
-    {
-        PyErr_NoMemory(); /* all errors in impl function are memory errors */
-        return NULL;
-    }
-
-    return matrix_to_python_list(lnorm);
+    calc_lnorm_impl(weighted_adjacency_matrix, diagonal_degree_matrix);
+    return matrix_to_python_list(weighted_adjacency_matrix);
 }
 
 /* api wrapper for implementations of fit */
