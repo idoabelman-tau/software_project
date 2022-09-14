@@ -7,6 +7,7 @@
 #ifndef INFINITY
 #define INFINITY (1.0/0.0)
 #endif
+#define EPSILON 0.00001
 
 /* doc in header */
 matrix *calc_weighted_adjacency_impl(matrix *datapoints){
@@ -193,6 +194,187 @@ int fit_impl(matrix *datapoints, size_t K, size_t max_iter, matrix *centroids, d
     return 0;
 }
 
+/* Jacobi */
+
+size_t* find_the_largest_abs_value(matrix* A){
+    size_t *arr;
+    double val = 0;
+    size_t a;
+    size_t b;
+    arr = calloc(2, sizeof(size_t));
+    for(a = 0; a < A->rows; a++){
+       for(b = 0; b < A->columns; b++){
+        if(a!=b && fabs(A->content[a][b]) > val ){
+            arr[0] = a;
+            arr[1] = b;
+            val = fabs(A->content[a][b]);
+        }
+
+       } 
+    }
+    return arr;
+}
+matrix *init_rotation_matrix(matrix *A, size_t i, size_t j,  size_t rows, size_t columns){
+    matrix *P;
+    double theta;
+    double t;
+    double c;
+    double s;
+    int sign_theta;
+    size_t a;
+
+    P = init_matrix(rows, columns);
+    theta = (A->content[j][j] - A->content[i][i]) / (2*A->content[i][j]);
+    sign_theta = theta >= 0 ? 1 : -1; 
+    t = sign_theta / (fabs(theta) + sqrt(pow(theta, 2) + 1));
+    c = 1 / (sqrt(pow(t, 2) + 1));
+    s = t*c;
+    for(a = 0; a <rows; a++){
+        P->content[a][a] = 1;
+    }
+    P->content[i][i] = c;
+    P->content[j][j] = c;
+    P->content[i][j] = s;
+    P->content[j][i] = -s;
+
+    return P;
+
+}
+matrix *matrix_transpose(matrix *P ,size_t rows,size_t columns){
+    matrix *P_trans;
+    size_t a;
+    size_t b;
+    P_trans = init_matrix(rows, columns);
+    
+    for(a = 0 ; a<rows ; a++){
+        for(b = 0; b<columns ; b++){
+            P_trans->content[a][b] = P->content[b][a];
+
+        }
+    }
+    return P_trans;
+}
+
+
+double off(matrix *mat, size_t rows , size_t columns){
+    size_t a;
+    size_t b;
+    double sum = 0;
+
+    for(a = 0 ; a<rows ; a++){
+        for(b = 0; b<columns ; b++){
+           if(a != b){
+                sum += pow(mat->content[a][b],2);
+            }
+        }
+    }
+    return sum;
+}
+
+void jacobi_algo(matrix *A){
+    size_t rows = A->rows;
+    size_t columns = A->columns;
+    matrix *P;
+    matrix *P_trans;
+    matrix *A_tag;
+    matrix *V;
+    size_t i;
+    size_t r;
+    size_t j;
+    size_t a;
+    size_t b;
+    size_t k;
+    size_t* arr; 
+    double off_A;
+    double off_A_tag;
+    double c;
+    double s;
+    V = init_matrix(rows, columns);
+    for(a = 0 ; a<rows ; a++){
+        for(b = 0; b<columns ; b++){
+           if(a == b){
+            V->content[a][b] = 1;
+            }
+        }
+    }
+        
+
+    for(k=0; k < 100; k++)
+    {
+        A_tag = init_matrix(rows, columns);
+        arr = find_the_largest_abs_value(A);
+        i = arr[0];
+        j = arr[1];
+        P = init_rotation_matrix(A, i, j, rows, columns);
+        P_trans = matrix_transpose(P , rows, columns);
+        c = P->content[i][i];
+        s = P->content[i][j];
+        for(a = 0 ; a<rows ; a++){
+            for(b = 0; b<columns ; b++){
+                A_tag->content[a][b] = A->content[a][b];
+            }
+        }
+        for(r = 0 ; r<rows ; r++){
+            if(r != i && r!= j){
+                A_tag->content[r][i] = c*A->content[r][i] - s*A->content[r][j];
+                A_tag->content[i][r] = c*A->content[r][i] - s*A->content[r][j];
+                A_tag->content[r][j] = c*A->content[r][j] + s*A->content[r][i];
+                A_tag->content[j][r] = c*A->content[r][j] + s*A->content[r][i];
+                    
+            }   
+        }
+        A_tag->content[i][i] = pow(c,2) * A->content[i][i] + pow(s,2) * A->content[j][j] - 2*c*s*A->content[i][j];
+        A_tag->content[j][j] = pow(s,2) * A->content[i][i] + pow(c,2) * A->content[j][j] + 2*c*s*A->content[i][j];
+        A_tag->content[i][j] = 0;
+        A_tag->content[j][i] = 0;
+        V = multiply_matrices(V, P);
+        off_A = off(A, rows, columns);
+        off_A_tag = off(A_tag, rows, columns);
+        if(fabs(off_A - off_A_tag) <= EPSILON){
+            /* A = A_tag */
+            for(a = 0 ; a<rows ; a++){
+                for(b = 0; b<columns ; b++){
+                    A->content[a][b] = A_tag->content[a][b];  
+                }
+            }
+            free_matrix(A_tag);
+            free_matrix(P);
+            free_matrix(P_trans);
+            free(arr);
+            break;
+        }
+
+       /* A = A_tag */
+       
+        for(a = 0 ; a<rows ; a++){
+            for(b = 0; b<columns ; b++){
+                A->content[a][b] = A_tag->content[a][b];  
+                }
+            }
+       
+        free_matrix(A_tag);
+        free_matrix(P);
+        free_matrix(P_trans);
+        free(arr);
+    }
+        
+    for(a = 0; a < rows; a++ ){
+        for(b = 0; b < columns; b++){
+            if(a==b && b == columns -1){
+                printf("%.4f\n" ,A->content[a][b]);
+            }
+            else if (a == b)
+            {
+                printf("%.4f," ,A->content[a][b]);
+            }
+            
+        }
+    }
+
+    print_matrix(V);   
+     
+}
+
 /* main entry point for C program */
 int main(int argc, char *argv[]) {
     char *goal;
@@ -276,6 +458,11 @@ int main(int argc, char *argv[]) {
         print_matrix(weighted_adjacency_matrix);
         free_matrix(diagonal_degree_matrix);
         free_matrix(weighted_adjacency_matrix);
+    }
+    
+    if(strcmp(goal, "jacobi") == 0) {
+        jacobi_algo(input_data);
+
     }
 
     free_matrix(input_data);
