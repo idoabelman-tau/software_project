@@ -271,13 +271,12 @@ double off(matrix *mat, size_t rows , size_t columns){
     return sum;
 }
 
-void jacobi_algo(matrix *A){
+int jacobi_impl(matrix *A, double *eigenvalues, matrix **V){
     size_t rows = A->rows;
     size_t columns = A->columns;
     matrix *P;
     matrix *P_trans;
     matrix *A_tag;
-    matrix *V;
     size_t i;
     size_t r;
     size_t j;
@@ -289,11 +288,11 @@ void jacobi_algo(matrix *A){
     double off_A_tag;
     double c;
     double s;
-    V = init_matrix(rows, columns);
+    
     for(a = 0 ; a<rows ; a++){
         for(b = 0; b<columns ; b++){
            if(a == b){
-            V->content[a][b] = 1;
+                (*V)->content[a][b] = 1;
             }
         }
     }
@@ -327,7 +326,7 @@ void jacobi_algo(matrix *A){
         A_tag->content[j][j] = pow(s,2) * A->content[i][i] + pow(c,2) * A->content[j][j] + 2*c*s*A->content[i][j];
         A_tag->content[i][j] = 0;
         A_tag->content[j][i] = 0;
-        V = multiply_matrices(V, P);
+        (*V) = multiply_matrices(*V, P);
         off_A = off(A, rows, columns);
         off_A_tag = off(A_tag, rows, columns);
         if(fabs(off_A - off_A_tag) <= EPSILON){
@@ -357,22 +356,11 @@ void jacobi_algo(matrix *A){
         free_matrix(P_trans);
         free(arr);
     }
-        
-    for(a = 0; a < rows; a++ ){
-        for(b = 0; b < columns; b++){
-            if(a==b && b == columns -1){
-                printf("%.4f\n" ,A->content[a][b]);
-            }
-            else if (a == b)
-            {
-                printf("%.4f," ,A->content[a][b]);
-            }
-            
-        }
-    }
 
-    print_matrix(V);   
-     
+    for(a = 0; a < A->rows; a++ ) {
+        eigenvalues[a] = A->content[a][a];
+    }
+    return 0;
 }
 
 /* main entry point for C program */
@@ -404,6 +392,7 @@ int main(int argc, char *argv[]) {
         if (weighted_adjacency_matrix == NULL)
         {
             printf("An Error Has Occurred\n");
+            free_matrix(input_data);
             return 1;
         }
         
@@ -411,7 +400,7 @@ int main(int argc, char *argv[]) {
         free_matrix(weighted_adjacency_matrix);
     }
     
-    if(strcmp(goal, "ddg") == 0) {
+    else if(strcmp(goal, "ddg") == 0) {
         matrix *weighted_adjacency_matrix;
         matrix *diagonal_degree_matrix;
 
@@ -419,6 +408,7 @@ int main(int argc, char *argv[]) {
         if (weighted_adjacency_matrix == NULL)
         {
             printf("An Error Has Occurred\n");
+            free_matrix(input_data);
             return 1;
         }
         
@@ -426,6 +416,7 @@ int main(int argc, char *argv[]) {
         if (diagonal_degree_matrix == NULL)
         {
             printf("An Error Has Occurred\n");
+            free_matrix(input_data);
             free_matrix(weighted_adjacency_matrix);
             return 1;
         }
@@ -435,7 +426,7 @@ int main(int argc, char *argv[]) {
         free_matrix(weighted_adjacency_matrix);
     }
 
-    if(strcmp(goal, "lnorm") == 0) {
+    else if(strcmp(goal, "lnorm") == 0) {
         matrix *weighted_adjacency_matrix;
         matrix *diagonal_degree_matrix;
 
@@ -443,6 +434,7 @@ int main(int argc, char *argv[]) {
         if (weighted_adjacency_matrix == NULL)
         {
             printf("An Error Has Occurred\n");
+            free_matrix(input_data);
             return 1;
         }
         
@@ -450,6 +442,7 @@ int main(int argc, char *argv[]) {
         if (diagonal_degree_matrix == NULL)
         {
             printf("An Error Has Occurred\n");
+            free_matrix(input_data);
             free_matrix(weighted_adjacency_matrix);
             return 1;
         }
@@ -460,9 +453,60 @@ int main(int argc, char *argv[]) {
         free_matrix(weighted_adjacency_matrix);
     }
     
-    if(strcmp(goal, "jacobi") == 0) {
-        jacobi_algo(input_data);
+    else if(strcmp(goal, "jacobi") == 0) {
+        int err;
+        matrix* V;
+        double* eigenvalues;
+        size_t i;
 
+        V = init_matrix(input_data->rows, input_data->columns);
+        if (V == NULL)
+        {
+            printf("An Error Has Occurred\n");
+            free_matrix(input_data);
+            return 1;
+        }
+
+        eigenvalues = calloc(input_data->rows, sizeof(double));
+        if (eigenvalues == NULL)
+        {
+            printf("An Error Has Occurred\n");
+            free_matrix(input_data);
+            free_matrix(V);
+            return 1;
+        }
+        
+        err = jacobi_impl(input_data, eigenvalues, &V);
+
+        if (err != 0)
+        {
+            printf("An Error Has Occurred\n");
+            free_matrix(input_data);
+            free_matrix(V);
+            free(eigenvalues);
+            return 1;
+        }
+        
+        for(i = 0; i < input_data->rows; i++ ){
+            if(i == input_data->rows - 1){
+                printf("%.4f\n", eigenvalues[i]);
+            }
+            else
+            {
+                printf("%.4f,", eigenvalues[i]);
+            }
+        }
+
+        print_matrix(V);
+
+        free_matrix(V);
+        free(eigenvalues);
+    }
+
+    else {
+        printf("Invalid Input!\n");
+        free_matrix(input_data);
+        return 1;
     }
 
     free_matrix(input_data);

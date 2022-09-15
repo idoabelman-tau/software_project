@@ -209,6 +209,51 @@ static PyObject* fit_api(PyObject *self, PyObject *args) {
     return matrix_to_python_list(centroids);
 }
 
+static PyObject* jacobi_api(PyObject *self, PyObject *A_py) {
+    matrix* A;
+    matrix* V;
+    double* eigenvalues;
+    PyObject* eigenvalues_py;
+    PyObject* V_py;
+    int err;
+    size_t i;
+
+    A = python_list_to_matrix(A_py);
+    if(A == NULL) {
+        /* error set inside python_list_to_matrix */
+        return NULL;
+    }
+
+    V = init_matrix(A->rows, A->columns);
+    if(V == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    eigenvalues = calloc(A->rows, sizeof(double));
+    if(eigenvalues == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    err = jacobi_impl(A, eigenvalues, &V);
+    if (err != 0)
+    {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    
+    eigenvalues_py = PyList_New(A->rows);
+    for (i = 0; i < A->rows; i++)
+    {
+        PyList_SetItem(eigenvalues_py, i, PyFloat_FromDouble(eigenvalues[i]));
+    }
+    
+
+    V_py = matrix_to_python_list(V);
+    return PyTuple_Pack(2, eigenvalues_py, V_py);
+}
+
 static PyMethodDef capiMethods[] = {
     {"calc_weighted_adjacency_matrix",                   
       (PyCFunction) calc_weighted_adjacency_api, 
@@ -226,6 +271,10 @@ static PyMethodDef capiMethods[] = {
       (PyCFunction) fit_api, 
       METH_VARARGS,           
       PyDoc_STR("Fit data to k centroids using kmeans algorithm")}, 
+    {"jacobi",                   
+      (PyCFunction) jacobi_api, 
+      METH_O,           
+      PyDoc_STR("Diagonalize matrix using jacobi, returning a tuple of the eigenvalues and the the diagonalization matrix (V)")}, 
     {NULL, NULL, 0, NULL}     
 };
 

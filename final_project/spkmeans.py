@@ -3,13 +3,14 @@ import numpy as np
 import pandas as pd
 import myspkmeans
 
-DEFAULT_MAX_ITER = 300
+MAX_ITER = 300
+EPSILON = 0
 
 def distance_squared(mu_j, x_l):
 	diff = mu_j - x_l
 	return np.dot(diff, diff)
 
-def init_centroids(x, K, d, N):
+def init_centroids(x, K, N):
 	np.random.seed(0)
 	i = 1
 	a = np.random.choice(N)
@@ -67,6 +68,40 @@ def main():
 			diagonal_degree_matrix = myspkmeans.calc_diagonal_degree_matrix(weighted_adjacency_matrix)
 			lnorm = myspkmeans.calc_lnorm(weighted_adjacency_matrix, diagonal_degree_matrix)
 			print_matrix(lnorm)
+
+		elif goal == "jacobi":
+			eigenvalues, V = myspkmeans.jacobi(input.values.tolist())
+			print(",".join(f"{num:.4f}" for num in eigenvalues))
+			print_matrix(V)
+
+		elif goal == "spk":
+			weighted_adjacency_matrix = myspkmeans.calc_weighted_adjacency_matrix(input.values.tolist())
+			diagonal_degree_matrix = myspkmeans.calc_diagonal_degree_matrix(weighted_adjacency_matrix)
+			lnorm = myspkmeans.calc_lnorm(weighted_adjacency_matrix, diagonal_degree_matrix)
+			eigenvalues, V = myspkmeans.jacobi(lnorm)
+			n = len(V)
+			eigenvectors = [[V[j][i] for j in range(n)] for i in range(n)] # get the eigenvectors from the columns
+			eigenvalues_vectors = list(zip(eigenvalues, eigenvectors))
+			eigenvalues_vectors.sort(reverse=True, key=lambda x:x[0]) # sort the eigenvalues and vectors together by the values
+			if K == 0:
+				# obtain K from eigengap heuristic
+				deltas = [abs(eigenvalues_vectors[i][0] - eigenvalues_vectors[i+1][0]) for i in range(n//2 - 1)]
+				max_delta = max(deltas)
+				K = deltas.index(max_delta) + 1 # +1 because it's a 0 based index
+
+			K_largest_vectors = [x[1] for x in eigenvalues_vectors[:K]]
+			U = np.array(K_largest_vectors).T
+			# normalize the rows forming T
+			for i in range(n):
+				U[i] = U[i] / np.sqrt(np.dot(U[i], U[i]))
+
+			index_lst, initial_centroids = init_centroids(U, K, n)
+			print(*index_lst, sep = ",")
+
+			final_centroids = myspkmeans.fit(U.tolist(), initial_centroids.tolist(), K, MAX_ITER, EPSILON)
+			for centroid in final_centroids:
+				print(",".join(f"{num:.4f}" for num in centroid))
+
 
 		else:
 			print("Invalid Input!")

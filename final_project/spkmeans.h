@@ -33,4 +33,6 @@ void calc_lnorm_impl(matrix *weighted_adjacency_matrix, matrix *diagonal_degree_
  */
 int fit_impl(matrix *datapoints, size_t K, size_t max_iter, matrix *centroids, double epsilon);
 
+int jacobi_impl(matrix *A, double *eigenvalues, matrix **V);
+
 #endif
