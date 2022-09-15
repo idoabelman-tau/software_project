@@ -271,12 +271,13 @@ double off(matrix *mat, size_t rows , size_t columns){
     return sum;
 }
 
-int jacobi_impl(matrix *A, double *eigenvalues, matrix **V){
+int jacobi_impl(matrix *A, double *eigenvalues, matrix *V){
     size_t rows = A->rows;
     size_t columns = A->columns;
     matrix *P;
     matrix *P_trans;
     matrix *A_tag;
+    matrix *temp_V;
     size_t i;
     size_t r;
     size_t j;
@@ -292,7 +293,7 @@ int jacobi_impl(matrix *A, double *eigenvalues, matrix **V){
     for(a = 0 ; a<rows ; a++){
         for(b = 0; b<columns ; b++){
            if(a == b){
-                (*V)->content[a][b] = 1;
+            V->content[a][b] = 1;
             }
         }
     }
@@ -300,6 +301,7 @@ int jacobi_impl(matrix *A, double *eigenvalues, matrix **V){
 
     for(k=0; k < 100; k++)
     {
+        temp_V = init_matrix(rows, columns);
         A_tag = init_matrix(rows, columns);
         arr = find_the_largest_abs_value(A);
         i = arr[0];
@@ -326,7 +328,18 @@ int jacobi_impl(matrix *A, double *eigenvalues, matrix **V){
         A_tag->content[j][j] = pow(s,2) * A->content[i][i] + pow(c,2) * A->content[j][j] + 2*c*s*A->content[i][j];
         A_tag->content[i][j] = 0;
         A_tag->content[j][i] = 0;
-        (*V) = multiply_matrices(*V, P);
+
+        for(a = 0 ; a<rows ; a++){
+            for(b = 0; b<columns ; b++){
+                    temp_V->content[a][b] = V->content[a][b];  
+                }
+            }
+
+        for (a = 0; a < rows ; a++ ){
+            V->content[a][i] = c*temp_V->content[a][i] - s*temp_V->content[a][j];
+            V->content[a][j] = c*temp_V->content[a][j] + s*temp_V->content[a][i];
+        }
+        
         off_A = off(A, rows, columns);
         off_A_tag = off(A_tag, rows, columns);
         if(fabs(off_A - off_A_tag) <= EPSILON){
@@ -339,6 +352,7 @@ int jacobi_impl(matrix *A, double *eigenvalues, matrix **V){
             free_matrix(A_tag);
             free_matrix(P);
             free_matrix(P_trans);
+            free(temp_V);
             free(arr);
             break;
         }
@@ -354,6 +368,7 @@ int jacobi_impl(matrix *A, double *eigenvalues, matrix **V){
         free_matrix(A_tag);
         free_matrix(P);
         free_matrix(P_trans);
+        free(temp_V);
         free(arr);
     }
 
@@ -476,7 +491,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         
-        err = jacobi_impl(input_data, eigenvalues, &V);
+        err = jacobi_impl(input_data, eigenvalues, V);
 
         if (err != 0)
         {

@@ -236,7 +236,7 @@ static PyObject* jacobi_api(PyObject *self, PyObject *A_py) {
         return NULL;
     }
 
-    err = jacobi_impl(A, eigenvalues, &V);
+    err = jacobi_impl(A, eigenvalues, V);
     if (err != 0)
     {
         PyErr_NoMemory();
