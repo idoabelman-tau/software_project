@@ -57,31 +57,6 @@ double euclidean_diff_norm(double *v1, double *v2, size_t d){
     return sqrt(distance_sum);
 }
 
-/* doc in header */
-matrix *multiply_matrices(matrix *first, matrix *second){
-    size_t i;
-    size_t j;
-    size_t k;
-    matrix *result;
-
-    result = init_matrix(first->rows, second->columns);
-    if (result == NULL)
-    {
-        return NULL;
-    }
-    
-
-    for (i = 0; i < first->rows; i++) {
-        for (j = 0; j < second->columns; j++) {
-            for (k = 0; k < first->columns; k++) {
-                result->content[i][j] += first->content[i][k] * second->content[k][j];
-            }
-        }
-    }
-
-    return result;
-}
-
 /* counts the amount of columns in a csv file representing a matrix by counting the
 commas in the first line, then returning to the start. */
 static size_t file_columns_count(FILE *fp) {
@@ -168,4 +143,9 @@ void print_matrix(matrix *mat) {
 /* doc in header */
 void zero_matrix(matrix *mat) {
     memset(mat->buffer, 0, sizeof(double) * mat->rows * mat->columns);
+}
+
+/* doc in header */
+void matrix_copy(matrix *dest, matrix *source) {
+    memcpy(dest->buffer, source->buffer, sizeof(double) * source->rows * source->columns);
 }

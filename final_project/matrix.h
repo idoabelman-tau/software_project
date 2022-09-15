@@ -36,14 +36,6 @@ void free_matrix(matrix *mat);
 double euclidean_diff_norm(double *v1, double *v2, size_t d);
 
 /*
- * Given two matrices and calculates the result of their multiplication.
- * Assumes the matrices can be multiplied - i.e. first->columns == second->rows.
- * Returns NULL on error.
- * It is the caller's responsibility to free the returned matrix by passing it to free_matrix.
- */
-matrix *multiply_matrices(matrix *first, matrix *second);
-
-/*
  * Given a file name and reads it as a csv into a matrix.
  * Assumes the file is a valid csv that represents a matrix.
  * Returns NULL on error.
@@ -52,13 +44,18 @@ matrix *multiply_matrices(matrix *first, matrix *second);
 matrix *read_file_to_matrix(char *file_name);
 
 /*
- * Given a matrixs and prints it to stdout as rows of comma separated values.
+ * Given a matrix and prints it to stdout as rows of comma separated values.
  */
 void print_matrix(matrix *mat);
 
 /*
- * Given a matrixs and zeroes all its values.
+ * Given a matrix and zeroes all its values.
  */
 void zero_matrix(matrix *mat);
+
+/*
+ * Given two matrices and copies the contents of source to dest. Both matrices MUST have the same dimensions.
+ */
+void matrix_copy(matrix *dest, matrix *source);
 
 #endif

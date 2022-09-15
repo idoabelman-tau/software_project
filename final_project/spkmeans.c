@@ -9,6 +9,14 @@
 #endif
 #define EPSILON 0.00001
 
+/* a lean representation of a rotation matrix used for jacobi */
+typedef struct {
+    size_t i;
+    size_t j;
+    double c;
+    double s;
+} rot_matrix;
+
 /* doc in header */
 matrix *calc_weighted_adjacency_impl(matrix *datapoints){
     size_t i;
@@ -196,73 +204,51 @@ int fit_impl(matrix *datapoints, size_t K, size_t max_iter, matrix *centroids, d
 
 /* Jacobi */
 
-size_t* find_the_largest_abs_value(matrix* A){
-    size_t *arr;
+/* create a representation of the rotation matrix P for the next stage of the jacobi algorithm
+ * including finding the pivot and calculating c and s */
+rot_matrix* calc_rotation_matrix(matrix* A){
+    rot_matrix *rotation;
     double val = 0;
     size_t a;
     size_t b;
-    arr = calloc(2, sizeof(size_t));
+    size_t i = 0;
+    size_t j = 0;
+    double theta;
+    int sign_theta;
+    double t;
+
+    rotation = calloc(1, sizeof(rot_matrix));
+
+    /* find the largest off-diagonal value and set its indices as the rotation matrix' i and j */
     for(a = 0; a < A->rows; a++){
        for(b = 0; b < A->columns; b++){
-        if(a!=b && fabs(A->content[a][b]) > val ){
-            arr[0] = a;
-            arr[1] = b;
-            val = fabs(A->content[a][b]);
-        }
+            if(a!=b && fabs(A->content[a][b]) >= val ){
+                i = a;
+                j = b;
+                val = fabs(A->content[a][b]);
+            }
 
        } 
     }
-    return arr;
-}
-matrix *init_rotation_matrix(matrix *A, size_t i, size_t j,  size_t rows, size_t columns){
-    matrix *P;
-    double theta;
-    double t;
-    double c;
-    double s;
-    int sign_theta;
-    size_t a;
+    rotation->i = i;
+    rotation->j = j;
 
-    P = init_matrix(rows, columns);
     theta = (A->content[j][j] - A->content[i][i]) / (2*A->content[i][j]);
     sign_theta = theta >= 0 ? 1 : -1; 
     t = sign_theta / (fabs(theta) + sqrt(pow(theta, 2) + 1));
-    c = 1 / (sqrt(pow(t, 2) + 1));
-    s = t*c;
-    for(a = 0; a <rows; a++){
-        P->content[a][a] = 1;
-    }
-    P->content[i][i] = c;
-    P->content[j][j] = c;
-    P->content[i][j] = s;
-    P->content[j][i] = -s;
-
-    return P;
-
-}
-matrix *matrix_transpose(matrix *P ,size_t rows,size_t columns){
-    matrix *P_trans;
-    size_t a;
-    size_t b;
-    P_trans = init_matrix(rows, columns);
-    
-    for(a = 0 ; a<rows ; a++){
-        for(b = 0; b<columns ; b++){
-            P_trans->content[a][b] = P->content[b][a];
-
-        }
-    }
-    return P_trans;
+    rotation->c = 1 / (sqrt(pow(t, 2) + 1));
+    rotation->s = t*rotation->c;
+    return rotation;
 }
 
-
-double off(matrix *mat, size_t rows , size_t columns){
+/* calculate the sum of squares of the off diagonal elements in mat */
+double off_squared(matrix *mat){
     size_t a;
     size_t b;
     double sum = 0;
 
-    for(a = 0 ; a<rows ; a++){
-        for(b = 0; b<columns ; b++){
+    for(a = 0 ; a < mat->rows ; a++){
+        for(b = 0; b < mat->columns ; b++){
            if(a != b){
                 sum += pow(mat->content[a][b],2);
             }
@@ -271,51 +257,53 @@ double off(matrix *mat, size_t rows , size_t columns){
     return sum;
 }
 
+/* doc in header */
 int jacobi_impl(matrix *A, double *eigenvalues, matrix *V){
-    size_t rows = A->rows;
-    size_t columns = A->columns;
-    matrix *P;
-    matrix *P_trans;
     matrix *A_tag;
     matrix *temp_V;
-    size_t i;
     size_t r;
-    size_t j;
     size_t a;
-    size_t b;
     size_t k;
-    size_t* arr; 
+    size_t i;
+    size_t j;
+    rot_matrix* rotation; 
     double off_A;
     double off_A_tag;
     double c;
     double s;
     
-    for(a = 0 ; a<rows ; a++){
-        for(b = 0; b<columns ; b++){
-           if(a == b){
-            V->content[a][b] = 1;
-            }
-        }
+    for(a = 0 ; a < A->rows ; a++){
+        V->content[a][a] = 1;
     }
-        
+
+    temp_V = init_matrix(V->rows, V->columns);
+    if (temp_V == NULL)
+    {
+        return 1;
+    }
+    
+
+    A_tag = init_matrix(A->rows, A->columns); 
+    if (A_tag == NULL)
+    {
+        free_matrix(temp_V);
+        return 1;
+    }
+    
 
     for(k=0; k < 100; k++)
     {
-        temp_V = init_matrix(rows, columns);
-        A_tag = init_matrix(rows, columns);
-        arr = find_the_largest_abs_value(A);
-        i = arr[0];
-        j = arr[1];
-        P = init_rotation_matrix(A, i, j, rows, columns);
-        P_trans = matrix_transpose(P , rows, columns);
-        c = P->content[i][i];
-        s = P->content[i][j];
-        for(a = 0 ; a<rows ; a++){
-            for(b = 0; b<columns ; b++){
-                A_tag->content[a][b] = A->content[a][b];
-            }
-        }
-        for(r = 0 ; r<rows ; r++){
+        rotation = calc_rotation_matrix(A);
+        i = rotation->i;
+        j = rotation->j;
+        c = rotation->c;
+        s = rotation->s;
+        free(rotation);
+
+        matrix_copy(A_tag, A);
+        
+        /* calculate A' from A using the short transformation in 1.2.1.6 */
+        for(r = 0 ; r < A->rows ; r++){
             if(r != i && r!= j){
                 A_tag->content[r][i] = c*A->content[r][i] - s*A->content[r][j];
                 A_tag->content[i][r] = c*A->content[r][i] - s*A->content[r][j];
@@ -329,48 +317,26 @@ int jacobi_impl(matrix *A, double *eigenvalues, matrix *V){
         A_tag->content[i][j] = 0;
         A_tag->content[j][i] = 0;
 
-        for(a = 0 ; a<rows ; a++){
-            for(b = 0; b<columns ; b++){
-                    temp_V->content[a][b] = V->content[a][b];  
-                }
-            }
+        matrix_copy(temp_V, V);
 
-        for (a = 0; a < rows ; a++ ){
+        /* multiply V by the rotation matrix on the left */
+        for (a = 0; a < V->rows ; a++ ){
             V->content[a][i] = c*temp_V->content[a][i] - s*temp_V->content[a][j];
             V->content[a][j] = c*temp_V->content[a][j] + s*temp_V->content[a][i];
         }
         
-        off_A = off(A, rows, columns);
-        off_A_tag = off(A_tag, rows, columns);
+        off_A = off_squared(A);
+        off_A_tag = off_squared(A_tag);
         if(fabs(off_A - off_A_tag) <= EPSILON){
-            /* A = A_tag */
-            for(a = 0 ; a<rows ; a++){
-                for(b = 0; b<columns ; b++){
-                    A->content[a][b] = A_tag->content[a][b];  
-                }
-            }
-            free_matrix(A_tag);
-            free_matrix(P);
-            free_matrix(P_trans);
-            free(temp_V);
-            free(arr);
+            matrix_copy(A, A_tag);
             break;
         }
 
-       /* A = A_tag */
-       
-        for(a = 0 ; a<rows ; a++){
-            for(b = 0; b<columns ; b++){
-                A->content[a][b] = A_tag->content[a][b];  
-                }
-            }
-       
-        free_matrix(A_tag);
-        free_matrix(P);
-        free_matrix(P_trans);
-        free(temp_V);
-        free(arr);
+        matrix_copy(A, A_tag);
     }
+
+    free_matrix(A_tag);
+    free_matrix(temp_V);
 
     for(a = 0; a < A->rows; a++ ) {
         eigenvalues[a] = A->content[a][a];

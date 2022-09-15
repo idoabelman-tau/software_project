@@ -33,6 +33,12 @@ void calc_lnorm_impl(matrix *weighted_adjacency_matrix, matrix *diagonal_degree_
  */
 int fit_impl(matrix *datapoints, size_t K, size_t max_iter, matrix *centroids, double epsilon);
 
+/*
+ * Calculate the eigenvalues and the matrix of eigenvectors of A using the jacobi algorithm as detailed in the project
+ * document 1.2.1.
+ * The parameters "eigenvalues" and  "V" should be initialized as an array and matrix of the same length as A's size
+ * and "V" should be all zeroes. After the function runs they will contain the results. Note that A is modified during the run.
+ */
 int jacobi_impl(matrix *A, double *eigenvalues, matrix *V);
 
 #endif

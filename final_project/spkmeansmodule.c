@@ -90,10 +90,12 @@ static PyObject* matrix_to_python_list(matrix* mat) {
     return mat_py;
 }
 
-/* api wrapper for implementations of calc_weighted_adjacency_matrix */
+/* api wrapper for implementation of calc_weighted_adjacency_matrix
+ * Recieves the datapoints as a python list of lists of floats and returns the wam as the same datatype */
 static PyObject* calc_weighted_adjacency_api(PyObject *self, PyObject *datapoints_py) {
     matrix* datapoints;
     matrix* weighted_adjacency_matrix;
+    PyObject* weighted_adjacency_matrix_py;
 
     datapoints = python_list_to_matrix(datapoints_py);
     if (datapoints == NULL)
@@ -109,13 +111,17 @@ static PyObject* calc_weighted_adjacency_api(PyObject *self, PyObject *datapoint
         return NULL;
     }
 
-    return matrix_to_python_list(weighted_adjacency_matrix);
+    weighted_adjacency_matrix_py = matrix_to_python_list(weighted_adjacency_matrix);
+    free_matrix(weighted_adjacency_matrix);
+    return weighted_adjacency_matrix_py;
 }
 
-/* api wrapper for implementations of calc_diagonal_degree_matrix */
+/* api wrapper for implementation of calc_diagonal_degree_matrix
+ * Recieves the datapoints as a python list of lists of floats and returns the ddg as the same datatype */
 static PyObject* calc_diagonal_degree_api(PyObject *self, PyObject *weighted_adjacency_matrix_py) {
     matrix* weighted_adjacency_matrix;
     matrix* diagonal_degree_matrix;
+    PyObject* diagonal_degree_matrix_py;
 
     weighted_adjacency_matrix = python_list_to_matrix(weighted_adjacency_matrix_py);
     if (weighted_adjacency_matrix == NULL)
@@ -128,21 +134,25 @@ static PyObject* calc_diagonal_degree_api(PyObject *self, PyObject *weighted_adj
     if (diagonal_degree_matrix == NULL)
     {
         PyErr_NoMemory(); /* all errors in impl function are memory errors */
+        free_matrix(weighted_adjacency_matrix);
         return NULL;
     }
 
-    return matrix_to_python_list(diagonal_degree_matrix);
+    diagonal_degree_matrix_py = matrix_to_python_list(diagonal_degree_matrix);
+    free_matrix(diagonal_degree_matrix);
+    free_matrix(weighted_adjacency_matrix);
+    return diagonal_degree_matrix_py;
 }
 
-/* api wrapper for implementations of calc_lnorm. Note that unlike the implementation function,
- * the wrapper function actually returns lnorm as a python list of lists and does not modify
- * the python arguments it recieves.
+/* api wrapper for implementation of calc_lnorm. Recieves wam and ddg as python lists of lists of floats
+ * and returns lnorm in the same representation.
  */
 static PyObject* calc_lnorm_api(PyObject *self, PyObject *args) {
     PyObject* weighted_adjacency_matrix_py;
     PyObject* diagonal_degree_matrix_py;
     matrix* weighted_adjacency_matrix;
     matrix* diagonal_degree_matrix;
+    PyObject* lnorm_py;
 
     if(!PyArg_ParseTuple(args, "OO:calc_lnorm", &weighted_adjacency_matrix_py, &diagonal_degree_matrix_py)) {
         return NULL;
@@ -159,14 +169,19 @@ static PyObject* calc_lnorm_api(PyObject *self, PyObject *args) {
     if (diagonal_degree_matrix == NULL)
     {
         /* error set inside python_list_to_matrix */
+        free_matrix(weighted_adjacency_matrix);
         return NULL;
     }
 
     calc_lnorm_impl(weighted_adjacency_matrix, diagonal_degree_matrix);
-    return matrix_to_python_list(weighted_adjacency_matrix);
+    lnorm_py = matrix_to_python_list(weighted_adjacency_matrix); /* after lnorm implemetation weighted_adjacency_matrix actually contains lnorm */
+    free_matrix(weighted_adjacency_matrix);
+    free_matrix(diagonal_degree_matrix);
+    return lnorm_py;
 }
 
-/* api wrapper for implementations of fit */
+/* api wrapper for implementation of fit. Recieves the same arguments as the implementation (matrices are represented
+ * as python lists of lists) and returns the final centroids as a python list of lists. */
 static PyObject* fit_api(PyObject *self, PyObject *args) {
     PyObject* datapoints_py;
     PyObject* initial_centroids_py;
@@ -176,6 +191,7 @@ static PyObject* fit_api(PyObject *self, PyObject *args) {
     size_t max_iter;
     double epsilon;
     int error_value;
+    PyObject* final_centroids_py;
 
     if(!PyArg_ParseTuple(args, "OOKKd:fit", &datapoints_py, &initial_centroids_py, &k, &max_iter, &epsilon)) {
         return NULL;
@@ -192,6 +208,7 @@ static PyObject* fit_api(PyObject *self, PyObject *args) {
     if (centroids == NULL)
     {
         /* error set inside python_list_to_matrix */
+        free_matrix(datapoints);
         return NULL;
     }
 
@@ -206,9 +223,15 @@ static PyObject* fit_api(PyObject *self, PyObject *args) {
         return NULL;
     }
     
-    return matrix_to_python_list(centroids);
+    final_centroids_py = matrix_to_python_list(centroids);
+    free_matrix(datapoints);
+    free_matrix(centroids);
+    return final_centroids_py;
 }
 
+/* api wrapper for implementation of jacobi. Recieves the matrix A as a python list of lists and returns a
+ * tuple of the eigenvalues as a list and the eigenvectors matrix V as a list of lists.
+ */
 static PyObject* jacobi_api(PyObject *self, PyObject *A_py) {
     matrix* A;
     matrix* V;
@@ -227,19 +250,25 @@ static PyObject* jacobi_api(PyObject *self, PyObject *A_py) {
     V = init_matrix(A->rows, A->columns);
     if(V == NULL) {
         PyErr_NoMemory();
+        free_matrix(A);
         return NULL;
     }
 
     eigenvalues = calloc(A->rows, sizeof(double));
     if(eigenvalues == NULL) {
         PyErr_NoMemory();
+        free_matrix(A);
+        free_matrix(V);
         return NULL;
     }
 
     err = jacobi_impl(A, eigenvalues, V);
     if (err != 0)
     {
-        PyErr_NoMemory();
+        PyErr_NoMemory(); /* all errors in jacobi are memory errors */
+        free_matrix(A);
+        free_matrix(V);
+        free(eigenvalues);
         return NULL;
     }
     
@@ -249,8 +278,11 @@ static PyObject* jacobi_api(PyObject *self, PyObject *A_py) {
         PyList_SetItem(eigenvalues_py, i, PyFloat_FromDouble(eigenvalues[i]));
     }
     
-
     V_py = matrix_to_python_list(V);
+    
+    free_matrix(A);
+    free_matrix(V);
+    free(eigenvalues);
     return PyTuple_Pack(2, eigenvalues_py, V_py);
 }
 
